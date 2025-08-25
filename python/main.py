@@ -1,36 +1,33 @@
-import pygame
+import asyncio
 import random
 import sys
 import os
-import asyncio
 
-# ★★★★★ デバッグ用のテキスト描画関数 ★★★★★
-def draw_debug_message(screen, message):
-    screen.fill(BLACK) # 画面を黒で塗りつぶす
-    font = pygame.font.Font(None, 36)
-    text_surface = font.render(message, True, WHITE)
-    text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-    screen.blit(text_surface, text_rect)
-    pygame.display.flip()
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# ★★★★★ 最終対策：モバイルブラウザのオーディオ初期化問題を回避 ★★★★★
+# pygameをインポートする前に、オーディオドライバを完全に無効化する
+os.environ['SDL_AUDIODRIVER'] = 'dummy'
+# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
+import pygame
+
+# メインの処理をすべてこの非同期関数にまとめます
 async def main():
     pygame.init()
 
     # 画面設定
-    global SCREEN_WIDTH, SCREEN_HEIGHT
     SCREEN_WIDTH, SCREEN_HEIGHT = 300, 500
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("画像パズル")
-    
-    # --- デバッグチェックポイント 1 ---
-    draw_debug_message(screen, "1. Pygame Initialized")
-    await asyncio.sleep(1) # 1秒待って確認しやすくする
 
     # 色
     WHITE = (255, 255, 255); BLACK = (0, 0, 0); GREEN = (0, 255, 0); BLUE = (0, 0, 255); RED = (255, 0, 0); GRAY = (128, 128, 128)
+
+    # パズル設定
     background_size = (250, 350)
     background_pos = (SCREEN_WIDTH // 2 - background_size[0] // 2, SCREEN_HEIGHT // 2 - background_size[1] // 2 - 70)
-    
+
+    # 各部位の枠の位置
     piece_positions = {
         "head.png": (background_pos[0] + 123, background_pos[1] + 26), "costa.png": (background_pos[0] + 123, background_pos[1] + 85),
         "backbone.png": (background_pos[0] + 123, background_pos[1] + 110), "pelvis.png": (background_pos[0] + 123, background_pos[1] + 155),
@@ -39,30 +36,29 @@ async def main():
         "right_knee.png": (background_pos[0] + 103, background_pos[1] + 237), "left_knee.png": (background_pos[0] + 147, background_pos[1] + 237),
         "right_leg.png": (background_pos[0] + 105, background_pos[1] + 294), "left_leg.png": (background_pos[0] + 145, background_pos[1] + 294),
     }
+
+    # 描画順序
     drawing_order = [
         "backbone.png", "costa.png", "pelvis.png", "right_femur.png", "left_femur.png", "right_leg.png", "left_leg.png",
         "right_arm.png", "left_arm.png", "head.png", "right_knee.png", "left_knee.png",
     ]
     piece_names = drawing_order
+
+    # ピースのサイズ設定
     base_piece_height = 45
     piece_scale_multipliers = {
-        "head.png":1.12, "backbone.png":2.8, "costa.png":1.25, "pelvis.png":1.15, "right_arm.png":3.3, "left_arm.png":3.3, 
+        "head.png":1.12, "backbone.png":2.8, "costa.png":1.25, "pelvis.png":1.15, "right_arm.png":3.3, "left_arm.png":3.3,
         "right_femur.png":1.76, "left_femur.png":1.76, "right_knee.png": 0.42, "left_knee.png": 0.42, "right_leg.png":2.28, "left_leg.png":2.28,
     }
     piece_rotations = { "right_arm.png": -9.4, "left_arm.png": 9.4 }
-    
-    def create_piece_frame(piece_image):
-        return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
+
+    def create_piece_frame(piece_image): return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
     def create_default_image(size, color=GREEN):
         surface = pygame.Surface(size, pygame.SRCALPHA)
         s = max(1, min(size[0], size[1]) // 2 - 5)
         pygame.draw.circle(surface, color, (size[0]//2, size[1]//2), s)
         pygame.draw.circle(surface, BLACK, (size[0]//2, size[1]//2), s, 3)
         return surface
-
-    # --- デバッグチェックポイント 2 ---
-    draw_debug_message(screen, "2. Starting Image Load...")
-    await asyncio.sleep(1)
 
     # --- 画像読み込み処理 ---
     piece_images_dict = {}
@@ -72,11 +68,7 @@ async def main():
     ASSETS_PATH = "assets"
     image_files = { "human": "human.png", "reset": "reset.png" }
 
-    for i, piece_name in enumerate(piece_names):
-        # どの画像を読み込んでいるか表示
-        draw_debug_message(screen, f"Loading: {piece_name} ({i+1}/{len(piece_names)})")
-        await asyncio.sleep(0) # ブラウザに描画の隙を与える
-
+    for piece_name in piece_names:
         multiplier = piece_scale_multipliers.get(piece_name, 1.0)
         target_h = base_piece_height * multiplier
         angle = piece_rotations.get(piece_name, 0)
@@ -90,11 +82,9 @@ async def main():
             resized_image = pygame.transform.scale(original_image, (new_width, new_height))
             final_image = pygame.transform.rotate(resized_image, angle) if angle != 0 else resized_image
             piece_images_dict[piece_name] = final_image
-        except pygame.error as e:
+        except pygame.error:
             piece_images_dict[piece_name] = create_default_image((int(target_h), int(target_h)))
-        
         frame_images_dict[piece_name] = create_piece_frame(piece_images_dict[piece_name])
-
     try:
         background_image_path = os.path.join(ASSETS_PATH, image_files["human"])
         background_image = pygame.transform.scale(pygame.image.load(background_image_path).convert_alpha(), background_size)
@@ -104,11 +94,6 @@ async def main():
         reset_button_image = pygame.transform.scale(pygame.image.load(reset_button_image_path).convert_alpha(), (55, 30))
     except pygame.error: pass
 
-    # --- デバッグチェックポイント 3 ---
-    draw_debug_message(screen, "3. Image Load Complete!")
-    await asyncio.sleep(1)
-
-    # (ここから先のコードは変更なし)
     font = pygame.font.Font(None, 50)
     complete_text_render = font.render("Complete!", True, RED)
     reset_button_rect = pygame.Rect(SCREEN_WIDTH - 65, 10, 55, 30)
@@ -134,15 +119,8 @@ async def main():
     swiping_slider = False; swipe_start_x = 0; initial_scroll_x = 0
     running = True; clock = pygame.time.Clock(); FPS = 60
 
-    # --- デバッグチェックポイント 4 ---
-    draw_debug_message(screen, "4. Entering Main Loop...")
-    await asyncio.sleep(1)
-
     # --- メインループ ---
     while running:
-        # (メインループの中身は変更なし)
-        # (省略)
-        # ...
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -151,14 +129,11 @@ async def main():
                     piece_start_positions = shuffle_pieces()
                     current_piece_positions = piece_start_positions.copy()
                     puzzle_done_state = {name: False for name in piece_names}
-                    scroll_x = 0
-                    continue
+                    scroll_x = 0; continue
                 if left_arrow_rect.collidepoint(mouse_pos):
-                    scroll_x = max(0, scroll_x - scroll_speed)
-                    continue
+                    scroll_x = max(0, scroll_x - scroll_speed); continue
                 if right_arrow_rect.collidepoint(mouse_pos):
-                    scroll_x = min(max_scroll_x, scroll_x + scroll_speed)
-                    continue
+                    scroll_x = min(max_scroll_x, scroll_x + scroll_speed); continue
                 slider_area = pygame.Rect(0, start_y - 40, SCREEN_WIDTH, 100)
                 piece_clicked_on_slider = False
                 if slider_area.collidepoint(mouse_pos):
@@ -175,9 +150,7 @@ async def main():
                                 piece_clicked_on_slider = True
                                 break
                 if not piece_clicked_on_slider and slider_area.collidepoint(mouse_pos):
-                    swiping_slider = True
-                    swipe_start_x = mouse_pos[0]
-                    initial_scroll_x = scroll_x
+                    swiping_slider = True; swipe_start_x = mouse_pos[0]; initial_scroll_x = scroll_x
             elif event.type == pygame.MOUSEBUTTONUP:
                 if dragging_piece:
                     dist = pygame.math.Vector2(current_piece_positions[dragging_piece]).distance_to(piece_positions[dragging_piece])
@@ -190,8 +163,7 @@ async def main():
                 if dragging_piece:
                     current_piece_positions[dragging_piece] = list(event.pos)
                 elif swiping_slider:
-                    mouse_x = event.pos[0]
-                    swipe_distance = swipe_start_x - mouse_x
+                    mouse_x = event.pos[0]; swipe_distance = swipe_start_x - mouse_x
                     scroll_x = max(0, min(max_scroll_x, initial_scroll_x + swipe_distance))
         screen.fill(WHITE)
         if background_image: screen.blit(background_image, background_pos)
