@@ -175,8 +175,8 @@ async def main():
         background_image = None
         
     try:
-        if os.path.exists("リセット.png"): 
-            reset_button_image = pygame.transform.scale(pygame.image.load("リセット.png"), (reset_button_rect.width, reset_button_rect.height))
+        if os.path.exists("reset.png"): 
+            reset_button_image = pygame.transform.scale(pygame.image.load("reset.png"), (reset_button_rect.width, reset_button_rect.height))
     except:
         reset_button_image = None
 
