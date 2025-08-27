@@ -54,6 +54,22 @@ async def main():
     base_piece_height = 45
     piece_scale_multipliers = { "head.png":1.12, "backbone.png":2.8, "costa.png":1.25, "pelvis.png":1.15, "right_arm.png":3.3, "left_arm.png":3.3, "right_femur.png":1.76, "left_femur.png":1.76, "right_knee.png":0.42, "left_knee.png":0.42, "right_leg.png":2.28, "left_leg.png":2.28 }
     piece_rotations = { "right_arm.png": -9.4, "left_arm.png": 9.4 }
+
+    piece_drag_inflations = {
+        "right_knee.png": 40,  # 膝は小さいので、判定をかなり広げる
+        "left_knee.png": 40,
+        "head.png": 20,
+        "right_arm.png": 20,   # 腕は細いので、少し広げる
+        "left_arm.png": 20,
+        "right_leg.png": 20,
+        "left_leg.png": 20,
+        "backbone.png": 10,     # 背骨は大きいので、判定は少しだけ広げる
+        "pelvis.png": 10,
+        "costa.png": 10,
+        "right_femur.png": 20, 
+        "left_femur.png": 20,
+        # ここに書かれていないピースは、後で設定するデフォルト値が適用される
+    }
     
     def create_piece_frame(piece_image): return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
     def create_default_image(size, color=GREEN):
@@ -105,7 +121,7 @@ async def main():
     # (ここから先のゲームロジックは変更なし)
     font = pygame.font.Font(None, 50); complete_text_render = font.render("Complete!", True, RED)
     reset_button_rect = pygame.Rect(SCREEN_WIDTH-65, 10, 55, 30); piece_start_positions = {}
-    spacing_x = int(base_piece_height*2.0); start_x = spacing_x; start_y = 440
+    spacing_x = int(base_piece_height*2.4); start_x = spacing_x; start_y = 440
     for i, name in enumerate(piece_names): piece_start_positions[name] = [start_x + i*spacing_x, start_y]
     def shuffle_pieces():
         shuffled_list = list(piece_names); random.shuffle(shuffled_list); new_positions = {}
@@ -136,9 +152,10 @@ async def main():
                             on_screen_x=piece_start_positions[name][0]-scroll_x; on_screen_y=piece_start_positions[name][1]
                             rect=piece_images_dict[name].get_rect(center=(on_screen_x, on_screen_y))
                             
-                            # ▼▼▼ この1行を追加 ▼▼▼
-                            # 当たり判定の範囲を、上下左右に15ピクセルずつ広げる (合計で幅・高さが30px増える)
-                            larger_rect = rect.inflate(45, 45)
+                            inflation_amount = piece_drag_inflations.get(name, 20)
+
+                             # 取得した値を使って、当たり判定の四角形を拡大する
+                            larger_rect = rect.inflate(inflation_amount, inflation_amount)
 
                             if larger_rect.collidepoint(mouse_pos):
                                 dragging_piece=name; current_piece_positions[name]=list(mouse_pos)
