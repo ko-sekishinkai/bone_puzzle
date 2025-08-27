@@ -3,6 +3,10 @@ import random
 import sys
 import os
 
+# ▼▼▼ この2行を追加 ▼▼▼
+# このスクリプトファイル自身の場所を基準にパスを解決するように変更
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 # ★★★★★ 最終対策 1: オーディオドライバを完全に無効化 ★★★★★
 os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
