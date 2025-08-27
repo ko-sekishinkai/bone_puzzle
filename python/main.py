@@ -105,7 +105,7 @@ async def main():
     # (ここから先のゲームロジックは変更なし)
     font = pygame.font.Font(None, 50); complete_text_render = font.render("Complete!", True, RED)
     reset_button_rect = pygame.Rect(SCREEN_WIDTH-65, 10, 55, 30); piece_start_positions = {}
-    spacing_x = int(base_piece_height*1.8); start_x = spacing_x; start_y = 440
+    spacing_x = int(base_piece_height*2.0); start_x = spacing_x; start_y = 440
     for i, name in enumerate(piece_names): piece_start_positions[name] = [start_x + i*spacing_x, start_y]
     def shuffle_pieces():
         shuffled_list = list(piece_names); random.shuffle(shuffled_list); new_positions = {}
@@ -138,7 +138,7 @@ async def main():
                             
                             # ▼▼▼ この1行を追加 ▼▼▼
                             # 当たり判定の範囲を、上下左右に15ピクセルずつ広げる (合計で幅・高さが30px増える)
-                            larger_rect = rect.inflate(30, 30)
+                            larger_rect = rect.inflate(45, 45)
 
                             if larger_rect.collidepoint(mouse_pos):
                                 dragging_piece=name; current_piece_positions[name]=list(mouse_pos)
