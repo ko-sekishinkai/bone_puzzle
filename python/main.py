@@ -59,11 +59,11 @@ async def main():
         "right_knee.png": 40,  # 膝は小さいので、判定をかなり広げる
         "left_knee.png": 40,
         "head.png": 20,
-        "right_arm.png": 10,   # 腕は細いので、少し広げる
-        "left_arm.png": 10,
+        "right_arm.png": 8,   # 腕は細いので、少し広げる
+        "left_arm.png": 8,
         "right_leg.png": 20,
         "left_leg.png": 20,
-        "backbone.png": 10,     # 背骨は大きいので、判定は少しだけ広げる
+        "backbone.png": 8,     # 背骨は大きいので、判定は少しだけ広げる
         "pelvis.png": 10,
         "costa.png": 10,
         "right_femur.png": 20, 
