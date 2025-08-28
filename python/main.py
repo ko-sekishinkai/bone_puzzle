@@ -36,7 +36,7 @@ async def main():
     # --- デバッグ: 画面設定後 ---
     draw_debug_message(screen, "1. Screen Initialized", (255,0,0)) # 赤画面
     await asyncio.sleep(0.5)
-
+    
     # 色などの基本設定
     WHITE, BLACK, GREEN, BLUE, RED, GRAY = (255,255,255), (0,0,0), (0,255,0), (0,0,255), (255,0,0), (128,128,128)
     background_size = (250, 350)
