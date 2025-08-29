@@ -11,16 +11,39 @@ os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
 import pygame
 
+# 画面にテキストを中央揃えで描画するための関数
+def draw_text(screen, text, font, color, center_pos):
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect(center=center_pos)
+    screen.blit(text_surface, text_rect)
+
 async def main():
     pygame.init()
 
     # 画面設定
     SCREEN_WIDTH, SCREEN_HEIGHT = 300, 500
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("画像パズル")
+    pygame.display.set_caption("ほねほねパズル")
     
     # 色などの基本設定
     WHITE, BLACK, GREEN, BLUE, RED, GRAY = (255,255,255), (0,0,0), (0,255,0), (0,0,255), (255,0,0), (128,128,128)
+
+    # --- タイトル画面の表示 ---
+    screen.fill(WHITE)
+    # 日本語が表示できるフォントを指定します。環境によってインストールされているフォントが異なります。
+    # Windowsなら "yugothic", "meiryo"、Macなら "hiraginokakugopro" など。
+    try:
+        # もう少し太字で力強いフォントを試す (例: "yugothicui" の "yugothic-bold" など)
+        # もし特定のフォントファイル(.ttf)があるなら、pygame.font.Font("font_path.ttf", 60) のように直接指定も可能です。
+        title_font = pygame.font.SysFont("yugothic", 40) 
+    except pygame.error:
+        # 指定したフォントがない場合は、デフォルトのフォントを使用します。
+        title_font = pygame.font.Font(None, 80)
+    
+    draw_text(screen, "ほねほねパズル", title_font, BLACK, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    pygame.display.flip()
+    await asyncio.sleep(2.5) # 2秒待つ
+
     background_size = (250, 350)
     background_pos = (SCREEN_WIDTH//2-background_size[0]//2, SCREEN_HEIGHT//2-background_size[1]//2-70)
     piece_positions = {
@@ -38,19 +61,18 @@ async def main():
     piece_rotations = { "right_arm.png": -9.4, "left_arm.png": 9.4 }
 
     piece_drag_inflations = {
-        "right_knee.png": 40,  # 膝は小さいので、判定をかなり広げる
+        "right_knee.png": 40,
         "left_knee.png": 40,
         "head.png": 20,
-        "right_arm.png": 8,   # 腕は細いので、少し広げる
+        "right_arm.png": 8,
         "left_arm.png": 8,
         "right_leg.png": 20,
         "left_leg.png": 20,
-        "backbone.png": 8,     # 背骨は大きいので、判定は少しだけ広げる
+        "backbone.png": 8,
         "pelvis.png": 10,
         "costa.png": 10,
         "right_femur.png": 20, 
         "left_femur.png": 20,
-        # ここに書かれていないピースは、後で設定するデフォルト値が適用される
     }
     
     def create_piece_frame(piece_image): return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
@@ -65,7 +87,6 @@ async def main():
     image_files = { "human": "human.png", "reset": "reset.png" }
 
     for i, piece_name in enumerate(piece_names):
-        # ★★★★★ 最終対策 2: 処理を分割し、ブラウザに休憩時間を与える ★★★★★
         await asyncio.sleep(0) 
 
         multiplier = piece_scale_multipliers.get(piece_name, 1.0); target_h = base_piece_height * multiplier
@@ -105,7 +126,6 @@ async def main():
     dragging_piece = None; drag_offset_x, drag_offset_y = 0, 0; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
     running = True; clock = pygame.time.Clock(); FPS = 60
 
-    # --- メインループ ---
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
@@ -124,8 +144,6 @@ async def main():
                             rect=piece_images_dict[name].get_rect(center=(on_screen_x, on_screen_y))
                             
                             inflation_amount = piece_drag_inflations.get(name, 20)
-
-                             # 取得した値を使って、当たり判定の四角形を拡大する
                             larger_rect = rect.inflate(inflation_amount, inflation_amount)
 
                             if larger_rect.collidepoint(mouse_pos):
