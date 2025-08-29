@@ -3,7 +3,6 @@ import random
 import sys
 import os
 
-# ▼▼▼ この2行を追加 ▼▼▼
 # このスクリプトファイル自身の場所を基準にパスを解決するように変更
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,30 +11,13 @@ os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
 import pygame
 
-# --- デバッグ用メッセージ表示関数 ---
-def draw_debug_message(screen, message, color=(0,0,0)):
-    screen.fill(color)
-    font = pygame.font.Font(None, 36)
-    text_surface = font.render(message, True, (255, 255, 255))
-    text_rect = text_surface.get_rect(center=(300 // 2, 500 // 2))
-    screen.blit(text_surface, text_rect)
-    pygame.display.flip()
-
 async def main():
-    # --- デバッグ: Pygame初期化前 ---
-    # このメッセージすら表示されない場合、import自体に問題がある
-    # print("DEBUG: Before pygame.init()")
-
     pygame.init()
 
     # 画面設定
     SCREEN_WIDTH, SCREEN_HEIGHT = 300, 500
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("画像パズル")
-
-    # --- デバッグ: 画面設定後 ---
-    draw_debug_message(screen, "1. Screen Initialized", (255,0,0)) # 赤画面
-    await asyncio.sleep(0.5)
     
     # 色などの基本設定
     WHITE, BLACK, GREEN, BLUE, RED, GRAY = (255,255,255), (0,0,0), (0,255,0), (0,0,255), (255,0,0), (128,128,128)
@@ -77,18 +59,12 @@ async def main():
         pygame.draw.circle(surface, color, (size[0]//2, size[1]//2), s); pygame.draw.circle(surface, BLACK, (size[0]//2, size[1]//2), s, 3)
         return surface
 
-    # --- デバッグ: 画像読み込み開始前 ---
-    draw_debug_message(screen, "2. Starting Image Load", (0,255,0)) # 緑画面
-    await asyncio.sleep(0.5)
-
     piece_images_dict, frame_images_dict = {}, {}
     background_image, reset_button_image = None, None
     ASSETS_PATH = "assets"
     image_files = { "human": "human.png", "reset": "reset.png" }
 
     for i, piece_name in enumerate(piece_names):
-        draw_debug_message(screen, f"Load: {piece_name} ({i+1}/{len(piece_names)})", (0,0,255)) # 青画面
-        
         # ★★★★★ 最終対策 2: 処理を分割し、ブラウザに休憩時間を与える ★★★★★
         await asyncio.sleep(0) 
 
@@ -114,11 +90,6 @@ async def main():
         reset_button_image = pygame.transform.scale(pygame.image.load(reset_button_image_path).convert_alpha(), (55, 30))
     except pygame.error: pass
 
-    # --- デバッグ: 全変数初期化完了 ---
-    draw_debug_message(screen, "3. Setup Complete!", (255,255,0)) # 黄色画面
-    await asyncio.sleep(0.5)
-
-    # (ここから先のゲームロジックは変更なし)
     font = pygame.font.Font(None, 50); complete_text_render = font.render("Complete!", True, RED)
     reset_button_rect = pygame.Rect(SCREEN_WIDTH-65, 10, 55, 30); piece_start_positions = {}
     spacing_x = int(base_piece_height*2.4); start_x = spacing_x; start_y = 440
