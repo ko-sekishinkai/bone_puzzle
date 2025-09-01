@@ -116,6 +116,11 @@ async def main():
     dragging_piece = None; drag_offset_x, drag_offset_y = 0, 0; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
     running = True; clock = pygame.time.Clock(); FPS = 60
 
+    ### 追加 1/2: ライセンス表示用のフォントとテキストを準備 ###
+    # ゲームループの前に一度だけ準備しておく
+    license_font = pygame.font.Font(None, 18) # フォントとサイズを指定
+    license_surface = license_font.render("MIT License", True, GRAY) # テキスト、アンチエイリアス、色を指定
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
@@ -174,6 +179,11 @@ async def main():
             if reset_button_image: screen.blit(reset_button_image, reset_button_rect)
             else: pygame.draw.rect(screen, BLUE, reset_button_rect)
             screen.blit(complete_text_render, complete_text_render.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT-60)))
+
+        ### 追加 2/2: 毎フレーム、ライセンス表示を描画する ###
+        # すべての描画が終わった後、画面を更新する前に描画する
+        screen.blit(license_surface, (5, 5)) # (5, 5)は左上からの座標
+
         pygame.display.flip()
         await asyncio.sleep(0)
         clock.tick(FPS)
