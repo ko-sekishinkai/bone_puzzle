@@ -27,22 +27,22 @@ async def main():
     
     # 色などの基本設定
     WHITE, BLACK, GREEN, BLUE, RED, GRAY = (255,255,255), (0,0,0), (0,255,0), (0,0,255), (255,0,0), (128,128,128)
+    ASSETS_PATH = "assets" # assetsフォルダのパスを変数にしておく
 
     # --- タイトル画面の表示 ---
     screen.fill(WHITE)
-    # 日本語が表示できるフォントを指定します。環境によってインストールされているフォントが異なります。
-    # Windowsなら "yugothic", "meiryo"、Macなら "hiraginokakugopro" など。
     try:
-        # もう少し太字で力強いフォントを試す (例: "yugothicui" の "yugothic-bold" など)
-        # もし特定のフォントファイル(.ttf)があるなら、pygame.font.Font("font_path.ttf", 60) のように直接指定も可能です。
-        title_font = pygame.font.SysFont("yugothic", 40) 
+        # "assets" フォルダの中にあるフォントファイルを指定する
+        font_path = os.path.join(ASSETS_PATH, "NotoSansJP-Bold.ttf")
+        title_font = pygame.font.Font(font_path, 40) 
     except pygame.error:
-        # 指定したフォントがない場合は、デフォルトのフォントを使用します。
+        # フォントファイルが見つからない場合は、エラーで停止しないようにデフォルトフォントを使う
+        print(f"フォントファイル '{font_path}' が見つかりません。")
         title_font = pygame.font.Font(None, 80)
     
     draw_text(screen, "ほねほねパズル", title_font, BLACK, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
     pygame.display.flip()
-    await asyncio.sleep(2.5) # 2秒待つ
+    await asyncio.sleep(2.5) # 2.5秒待つ
 
     background_size = (250, 350)
     background_pos = (SCREEN_WIDTH//2-background_size[0]//2, SCREEN_HEIGHT//2-background_size[1]//2-70)
@@ -61,18 +61,9 @@ async def main():
     piece_rotations = { "right_arm.png": -9.4, "left_arm.png": 9.4 }
 
     piece_drag_inflations = {
-        "right_knee.png": 40,
-        "left_knee.png": 40,
-        "head.png": 20,
-        "right_arm.png": 8,
-        "left_arm.png": 8,
-        "right_leg.png": 20,
-        "left_leg.png": 20,
-        "backbone.png": 8,
-        "pelvis.png": 10,
-        "costa.png": 10,
-        "right_femur.png": 20, 
-        "left_femur.png": 20,
+        "right_knee.png": 40, "left_knee.png": 40, "head.png": 20, "right_arm.png": 8,
+        "left_arm.png": 8, "right_leg.png": 20, "left_leg.png": 20, "backbone.png": 8,
+        "pelvis.png": 10, "costa.png": 10, "right_femur.png": 20, "left_femur.png": 20,
     }
     
     def create_piece_frame(piece_image): return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
@@ -83,7 +74,6 @@ async def main():
 
     piece_images_dict, frame_images_dict = {}, {}
     background_image, reset_button_image = None, None
-    ASSETS_PATH = "assets"
     image_files = { "human": "human.png", "reset": "reset.png" }
 
     for i, piece_name in enumerate(piece_names):
