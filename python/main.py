@@ -2,6 +2,7 @@ import asyncio
 import random
 import sys
 import os
+import webbrowser
 
 # このスクリプトファイル自身の場所を基準にパスを解決するように変更
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -27,23 +28,23 @@ async def main():
     
     # 色などの基本設定
     WHITE, BLACK, GREEN, BLUE, RED, GRAY = (255,255,255), (0,0,0), (0,255,0), (0,0,255), (255,0,0), (128,128,128)
-    ASSETS_PATH = "assets" # assetsフォルダのパスを変数にしておく
+    LINK_COLOR = (100, 100, 255)
+    ASSETS_PATH = "assets"
 
     # --- タイトル画面の表示 ---
     screen.fill(WHITE)
     try:
-        # "assets" フォルダの中にあるフォントファイルを指定する
         font_path = os.path.join(ASSETS_PATH, "NotoSansJP-Bold.ttf")
         title_font = pygame.font.Font(font_path, 40) 
     except pygame.error:
-        # フォントファイルが見つからない場合は、エラーで停止しないようにデフォルトフォントを使う
         print(f"フォントファイル '{font_path}' が見つかりません。")
         title_font = pygame.font.Font(None, 80)
     
     draw_text(screen, "ほねほねパズル", title_font, BLACK, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
     pygame.display.flip()
-    await asyncio.sleep(2.5) # 2.5秒待つ
+    await asyncio.sleep(2.5)
 
+    # --- ここからが省略されていたゲーム準備の処理です ---
     background_size = (250, 350)
     background_pos = (SCREEN_WIDTH//2-background_size[0]//2, SCREEN_HEIGHT//2-background_size[1]//2-70)
     piece_positions = {
@@ -59,26 +60,21 @@ async def main():
     base_piece_height = 45
     piece_scale_multipliers = { "head.png":1.12, "backbone.png":2.8, "costa.png":1.25, "pelvis.png":1.15, "right_arm.png":3.3, "left_arm.png":3.3, "right_femur.png":1.76, "left_femur.png":1.76, "right_knee.png":0.42, "left_knee.png":0.42, "right_leg.png":2.28, "left_leg.png":2.28 }
     piece_rotations = { "right_arm.png": -9.4, "left_arm.png": 9.4 }
-
     piece_drag_inflations = {
         "right_knee.png": 40, "left_knee.png": 40, "head.png": 20, "right_arm.png": 8,
         "left_arm.png": 8, "right_leg.png": 20, "left_leg.png": 20, "backbone.png": 8,
         "pelvis.png": 10, "costa.png": 10, "right_femur.png": 20, "left_femur.png": 20,
     }
-    
     def create_piece_frame(piece_image): return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
     def create_default_image(size, color=GREEN):
         surface = pygame.Surface(size, pygame.SRCALPHA); s = max(1, min(size[0], size[1])//2-5)
         pygame.draw.circle(surface, color, (size[0]//2, size[1]//2), s); pygame.draw.circle(surface, BLACK, (size[0]//2, size[1]//2), s, 3)
         return surface
-
     piece_images_dict, frame_images_dict = {}, {}
     background_image, reset_button_image = None, None
     image_files = { "human": "human.png", "reset": "reset.png" }
-
     for i, piece_name in enumerate(piece_names):
         await asyncio.sleep(0) 
-
         multiplier = piece_scale_multipliers.get(piece_name, 1.0); target_h = base_piece_height * multiplier
         angle = piece_rotations.get(piece_name, 0); image_path = os.path.join(ASSETS_PATH, piece_name)
         try:
@@ -100,7 +96,6 @@ async def main():
         reset_button_image_path = os.path.join(ASSETS_PATH, image_files["reset"])
         reset_button_image = pygame.transform.scale(pygame.image.load(reset_button_image_path).convert_alpha(), (55, 30))
     except pygame.error: pass
-
     font = pygame.font.Font(None, 50); complete_text_render = font.render("Complete!", True, RED)
     reset_button_rect = pygame.Rect(SCREEN_WIDTH-65, 10, 55, 30); piece_start_positions = {}
     spacing_x = int(base_piece_height*2.4); start_x = spacing_x; start_y = 440
@@ -114,52 +109,74 @@ async def main():
     max_scroll_x = total_pieces_width-SCREEN_WIDTH if total_pieces_width > SCREEN_WIDTH else 0
     left_arrow_rect, right_arrow_rect = pygame.Rect(5, start_y-20, 30, 40), pygame.Rect(SCREEN_WIDTH-35, start_y-20, 30, 40)
     dragging_piece = None; drag_offset_x, drag_offset_y = 0, 0; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
+    # --- ここまでが省略されていた部分です ---
+
     running = True; clock = pygame.time.Clock(); FPS = 60
 
-    ### 追加 1/2: ライセンス表示用のフォントとテキストを準備 ###
-    # ゲームループの前に一度だけ準備しておく
-    license_font = pygame.font.Font(None, 18) # フォントとサイズを指定
-    license_surface = license_font.render("MIT License", True, GRAY) # テキスト、アンチエイリアス、色を指定
+    # ライセンス表示関連の準備
+    license_font = pygame.font.Font(None, 18)
+    license_text_str = "MIT License"
+    license_url = "https://github.com/ko-sekishinkai/bone_puzzle/blob/main/LICENSE"
+    license_surface_normal = license_font.render(license_text_str, True, GRAY)
+    license_surface_hover = license_font.render(license_text_str, True, LINK_COLOR)
+    license_rect = license_surface_normal.get_rect(topleft=(5, 5))
+
+    # GitHubアイコン関連の準備
+    github_url = "https://github.com/ko-sekishinkai/bone_puzzle"
+    try:
+        github_icon_image = pygame.image.load(os.path.join(ASSETS_PATH, "github_icon.png")).convert_alpha()
+        github_icon_image = pygame.transform.scale(github_icon_image, (30, 30))
+        # --- ▼▼▼ 変更箇所 ▼▼▼ ---
+        # ライセンス表記のすぐ下に左揃えで配置する
+        github_icon_rect = github_icon_image.get_rect(topleft=(license_rect.left, license_rect.bottom + 5))
+        # --- ▲▲▲ 変更箇所 ▲▲▲ ---
+    except pygame.error:
+        github_icon_image = None
+        github_icon_rect = pygame.Rect(0,0,0,0)
 
     while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: running = False
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = event.pos
-                if all(puzzle_done_state.values()) and reset_button_rect.collidepoint(mouse_pos):
-                    piece_start_positions=shuffle_pieces(); current_piece_positions=piece_start_positions.copy()
-                    puzzle_done_state={name:False for name in piece_names}; scroll_x=0; continue
-                if left_arrow_rect.collidepoint(mouse_pos): scroll_x=max(0, scroll_x-scroll_speed); continue
-                if right_arrow_rect.collidepoint(mouse_pos): scroll_x=min(max_scroll_x, scroll_x+scroll_speed); continue
-                slider_area=pygame.Rect(0, start_y-40, SCREEN_WIDTH, 100); piece_clicked_on_slider = False
-                if slider_area.collidepoint(mouse_pos):
-                    for name in reversed(drawing_order):
-                        if not puzzle_done_state.get(name):
-                            on_screen_x=piece_start_positions[name][0]-scroll_x; on_screen_y=piece_start_positions[name][1]
-                            rect=piece_images_dict[name].get_rect(center=(on_screen_x, on_screen_y))
-                            
-                            inflation_amount = piece_drag_inflations.get(name, 20)
-                            larger_rect = rect.inflate(inflation_amount, inflation_amount)
+        mouse_pos = pygame.mouse.get_pos()
+        is_hovering_license = license_rect.collidepoint(mouse_pos)
+        is_hovering_github = github_icon_rect and github_icon_rect.collidepoint(mouse_pos)
 
-                            if larger_rect.collidepoint(mouse_pos):
-                                dragging_piece=name; current_piece_positions[name]=list(mouse_pos)
-                                drag_offset_x=mouse_pos[0]-on_screen_x; drag_offset_y=mouse_pos[1]-on_screen_y
-                                piece_clicked_on_slider=True; break
-                if not piece_clicked_on_slider and slider_area.collidepoint(mouse_pos):
-                    swiping_slider=True; swipe_start_x=mouse_pos[0]; initial_scroll_x=scroll_x
+        if is_hovering_license or is_hovering_github:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
+        else:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if is_hovering_license: webbrowser.open(license_url)
+                elif is_hovering_github: webbrowser.open(github_url)
+                else:
+                    if all(puzzle_done_state.values()) and reset_button_rect.collidepoint(mouse_pos):
+                        piece_start_positions=shuffle_pieces(); current_piece_positions=piece_start_positions.copy(); puzzle_done_state={name:False for name in piece_names}; scroll_x=0
+                    elif left_arrow_rect.collidepoint(mouse_pos): scroll_x=max(0, scroll_x-scroll_speed)
+                    elif right_arrow_rect.collidepoint(mouse_pos): scroll_x=min(max_scroll_x, scroll_x+scroll_speed)
+                    else:
+                        slider_area=pygame.Rect(0, start_y-40, SCREEN_WIDTH, 100); piece_clicked_on_slider = False
+                        if slider_area.collidepoint(mouse_pos):
+                            for name in reversed(drawing_order):
+                                if not puzzle_done_state.get(name):
+                                    on_screen_x=piece_start_positions[name][0]-scroll_x; on_screen_y=piece_start_positions[name][1]
+                                    rect=piece_images_dict[name].get_rect(center=(on_screen_x, on_screen_y)); inflation_amount = piece_drag_inflations.get(name, 20)
+                                    if rect.inflate(inflation_amount, inflation_amount).collidepoint(mouse_pos):
+                                        dragging_piece=name; current_piece_positions[name]=list(mouse_pos); drag_offset_x=mouse_pos[0]-on_screen_x; drag_offset_y=mouse_pos[1]-on_screen_y
+                                        piece_clicked_on_slider=True; break
+                        if not piece_clicked_on_slider and slider_area.collidepoint(mouse_pos):
+                            swiping_slider=True; swipe_start_x=mouse_pos[0]; initial_scroll_x=scroll_x
             elif event.type == pygame.MOUSEBUTTONUP:
                 if dragging_piece:
                     dist=pygame.math.Vector2(current_piece_positions[dragging_piece]).distance_to(piece_positions[dragging_piece])
-                    if dist <= 25:
-                        current_piece_positions[dragging_piece]=list(piece_positions[dragging_piece])
-                        puzzle_done_state[dragging_piece]=True
+                    if dist <= 25: current_piece_positions[dragging_piece]=list(piece_positions[dragging_piece]); puzzle_done_state[dragging_piece]=True
                     dragging_piece=None
                 swiping_slider = False
             elif event.type == pygame.MOUSEMOTION:
                 if dragging_piece: current_piece_positions[dragging_piece]=list(event.pos)
-                elif swiping_slider:
-                    mouse_x=event.pos[0]; swipe_distance=swipe_start_x-mouse_x
-                    scroll_x=max(0, min(max_scroll_x, initial_scroll_x+swipe_distance))
+                elif swiping_slider: swipe_distance=swipe_start_x-event.pos[0]; scroll_x=max(0, min(max_scroll_x, initial_scroll_x+swipe_distance))
+
         screen.fill(WHITE)
         if background_image: screen.blit(background_image, background_pos)
         for piece_name, pos in piece_positions.items():
@@ -179,11 +196,9 @@ async def main():
             if reset_button_image: screen.blit(reset_button_image, reset_button_rect)
             else: pygame.draw.rect(screen, BLUE, reset_button_rect)
             screen.blit(complete_text_render, complete_text_render.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT-60)))
-
-        ### 追加 2/2: 毎フレーム、ライセンス表示を描画する ###
-        # すべての描画が終わった後、画面を更新する前に描画する
-        screen.blit(license_surface, (5, 5)) # (5, 5)は左上からの座標
-
+        if is_hovering_license: screen.blit(license_surface_hover, license_rect)
+        else: screen.blit(license_surface_normal, license_rect)
+        if github_icon_image: screen.blit(github_icon_image, github_icon_rect)
         pygame.display.flip()
         await asyncio.sleep(0)
         clock.tick(FPS)
