@@ -23,10 +23,7 @@ async def main():
 
     # 画面設定
     SCREEN_WIDTH, SCREEN_HEIGHT = 300, 500
-    # --- ▼▼▼ 変更箇所 ▼▼▼ ---
-    # pygame.SCALEDフラグを追加して、高解像度ディスプレイに対応
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
-    # --- ▲▲▲ 変更箇所 ▲▲▲ ---
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("ほねほねパズル")
     
     # 色などの基本設定
