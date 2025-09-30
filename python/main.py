@@ -8,7 +8,7 @@ import webbrowser
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # ★★★★★ 最終対策 1: オーディオドライバを完全に無効化 ★★★★★
-os.environ['SDL_AUDIODRIVER'] = 'dummy'
+os.environ['SDL_AUDIODrivers'] = 'dummy'
 
 import pygame
 
@@ -44,7 +44,7 @@ async def main():
     pygame.display.flip()
     await asyncio.sleep(2.5)
 
-    # --- ここからが省略されていたゲーム準備の処理です ---
+    # --- ゲーム準備 ---
     background_size = (250, 350)
     background_pos = (SCREEN_WIDTH//2-background_size[0]//2, SCREEN_HEIGHT//2-background_size[1]//2-70)
     piece_positions = {
@@ -105,16 +105,18 @@ async def main():
         for i, name in enumerate(shuffled_list): new_positions[name] = [start_x+i*spacing_x, start_y]
         return new_positions
     current_piece_positions = piece_start_positions.copy(); puzzle_done_state = {name: False for name in piece_names}
-    scroll_x = 0; scroll_speed = 40
+    scroll_x = 0; scroll_speed = 40;
     
-    ### 変更点 1: ループ用の幅を計算 ###
-    # total_pieces_width = start_x*2+(len(piece_names)-1)*spacing_x  <- 古い計算方法
+    # [無限ループ機能] ループ用の幅を計算
     total_pieces_width = len(piece_names) * spacing_x
     if total_pieces_width == 0: total_pieces_width = 1 # ゼロ除算を避ける
 
     left_arrow_rect, right_arrow_rect = pygame.Rect(5, start_y-20, 30, 40), pygame.Rect(SCREEN_WIDTH-35, start_y-20, 30, 40)
     dragging_piece = None; drag_offset_x, drag_offset_y = 0, 0; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
-    # --- ここまでが省略されていた部分です ---
+    
+    # [リセットカウント機能] カウント用変数の準備
+    reset_count = 0
+    count_font = pygame.font.Font(None, 24)
 
     running = True; clock = pygame.time.Clock(); FPS = 60
 
@@ -154,8 +156,11 @@ async def main():
                 elif is_hovering_github: webbrowser.open(github_url)
                 else:
                     if all(puzzle_done_state.values()) and reset_button_rect.collidepoint(mouse_pos):
+                        # [リセットカウント機能] カウントアップ処理
+                        reset_count += 1
                         piece_start_positions=shuffle_pieces(); current_piece_positions=piece_start_positions.copy(); puzzle_done_state={name:False for name in piece_names}; scroll_x=0
-                    ### 変更点 2: スクロール処理をループに変更 ###
+                    
+                    # [無限ループ機能] スクロール処理をループに変更
                     elif left_arrow_rect.collidepoint(mouse_pos):
                         scroll_x = (scroll_x - scroll_speed) % total_pieces_width
                     elif right_arrow_rect.collidepoint(mouse_pos):
@@ -165,7 +170,7 @@ async def main():
                         if slider_area.collidepoint(mouse_pos):
                             for name in reversed(drawing_order):
                                 if not puzzle_done_state.get(name):
-                                    # ピースのクリック判定をループ描画に合わせて行う
+                                    # [無限ループ機能] ピースのクリック判定をループ描画に合わせて行う
                                     for offset in [0, total_pieces_width, -total_pieces_width]:
                                         on_screen_x = piece_start_positions[name][0] - scroll_x + offset
                                         on_screen_y = piece_start_positions[name][1]
@@ -185,7 +190,8 @@ async def main():
                 swiping_slider = False
             elif event.type == pygame.MOUSEMOTION:
                 if dragging_piece: current_piece_positions[dragging_piece]=list(event.pos)
-                ### 変更点 2: スクロール処理をループに変更 ###
+                
+                # [無限ループ機能] スクロール処理をループに変更
                 elif swiping_slider:
                     swipe_distance=swipe_start_x-event.pos[0]
                     scroll_x = (initial_scroll_x + swipe_distance) % total_pieces_width
@@ -200,7 +206,7 @@ async def main():
             if name == dragging_piece or puzzle_done_state.get(name):
                  pos=current_piece_positions[name]; screen.blit(img, img.get_rect(center=pos))
             else:
-                ### 変更点 3: 描画処理をループに対応させる ###
+                # [無限ループ機能] 描画処理をループに対応させる
                 # 3セット（中央、右、左）描画して無限スクロールを実現
                 for offset in [0, total_pieces_width, -total_pieces_width]:
                     on_screen_x = piece_start_positions[name][0] - scroll_x + offset
@@ -217,6 +223,10 @@ async def main():
             if reset_button_image: screen.blit(reset_button_image, reset_button_rect)
             else: pygame.draw.rect(screen, BLUE, reset_button_rect)
             screen.blit(complete_text_render, complete_text_render.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT-60)))
+        
+        # [リセットカウント機能] カウント数の表示
+        draw_text(screen, f"Resets: {reset_count}", count_font, BLACK, (reset_button_rect.centerx, reset_button_rect.bottom + 15))
+
         if is_hovering_license: screen.blit(license_surface_hover, license_rect)
         else: screen.blit(license_surface_normal, license_rect)
         if github_icon_image: screen.blit(github_icon_image, github_icon_rect)
