@@ -111,6 +111,10 @@ async def main():
     dragging_piece = None; drag_offset_x, drag_offset_y = 0, 0; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
     # --- ここまでが省略されていた部分です ---
 
+    ### 変更・追加 1: カウント用変数の準備 ###
+    reset_count = 0
+    count_font = pygame.font.Font(None, 24)
+
     running = True; clock = pygame.time.Clock(); FPS = 60
 
     # ライセンス表示関連の準備
@@ -152,6 +156,9 @@ async def main():
                 elif is_hovering_github: webbrowser.open(github_url)
                 else:
                     if all(puzzle_done_state.values()) and reset_button_rect.collidepoint(mouse_pos):
+                        ### 変更・追加 2: カウントアップ処理の追加 ###
+                        reset_count += 1 
+                        
                         piece_start_positions=shuffle_pieces(); current_piece_positions=piece_start_positions.copy(); puzzle_done_state={name:False for name in piece_names}; scroll_x=0
                     elif left_arrow_rect.collidepoint(mouse_pos): scroll_x=max(0, scroll_x-scroll_speed)
                     elif right_arrow_rect.collidepoint(mouse_pos): scroll_x=min(max_scroll_x, scroll_x+scroll_speed)
@@ -196,6 +203,10 @@ async def main():
             if reset_button_image: screen.blit(reset_button_image, reset_button_rect)
             else: pygame.draw.rect(screen, BLUE, reset_button_rect)
             screen.blit(complete_text_render, complete_text_render.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT-60)))
+        
+        ### 変更・追加 3: カウント数の表示 ###
+        draw_text(screen, f"Resets: {reset_count}", count_font, BLACK, (reset_button_rect.centerx, reset_button_rect.bottom + 15))
+
         if is_hovering_license: screen.blit(license_surface_hover, license_rect)
         else: screen.blit(license_surface_normal, license_rect)
         if github_icon_image: screen.blit(github_icon_image, github_icon_rect)
