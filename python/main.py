@@ -7,19 +7,23 @@ import webbrowser
 # このスクリプトファイル自身の場所を基準にパスを解決するように変更
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# ★★★★★ 最終対策 1: オーディオドライバを完全に無効化 ★★★★★
-os.environ['SDL_AUDIODrivers'] = 'dummy'
+# os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
 import pygame
 
-# 画面にテキストを中央揃えで描画するための関数
-def draw_text(screen, text, font, color, center_pos):
+# 画面にテキストを描画するための関数
+def draw_text(screen, text, font, color, pos, is_center=True):
     text_surface = font.render(text, True, color)
-    text_rect = text_surface.get_rect(center=center_pos)
+    if is_center:
+        text_rect = text_surface.get_rect(center=pos)
+    else:
+        text_rect = text_surface.get_rect(topleft=pos)
     screen.blit(text_surface, text_rect)
 
 async def main():
-    pygame.init()
+    # pygame.init() はmixerを初期化する前に個別に呼び出す
+    pygame.font.init()
+    pygame.display.init()
 
     # 画面設定
     SCREEN_WIDTH, SCREEN_HEIGHT = 300, 500
@@ -31,205 +35,215 @@ async def main():
     LINK_COLOR = (100, 100, 255)
     ASSETS_PATH = "assets"
 
-    # --- タイトル画面の表示 ---
-    screen.fill(WHITE)
+    # --- フォントの準備 ---
     try:
         font_path = os.path.join(ASSETS_PATH, "NotoSansJP-Bold.ttf")
-        title_font = pygame.font.Font(font_path, 40) 
+        jp_font_40 = pygame.font.Font(font_path, 40)
+        jp_font_36 = pygame.font.Font(font_path, 36)
     except pygame.error:
-        print(f"フォントファイル '{font_path}' が見つかりません。")
-        title_font = pygame.font.Font(None, 80)
+        jp_font_40 = pygame.font.Font(None, 60)
+        jp_font_36 = pygame.font.Font(None, 50)
     
-    draw_text(screen, "ほねほねパズル", title_font, BLACK, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    font_50 = pygame.font.Font(None, 50)
+    font_24 = pygame.font.Font(None, 24)
+    font_18 = pygame.font.Font(None, 18)
+
+    # --- タイトル画面の表示 ---
+    screen.fill(WHITE)
+    draw_text(screen, "ほねほねパズル", jp_font_40, BLACK, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
     pygame.display.flip()
     await asyncio.sleep(2.5)
+    
+    # 効果音関連
+    is_mixer_initialized = False
+    try:
+        # ここで "drop.ogg" を読み込んでいます
+        drop_sound = pygame.mixer.Sound(os.path.join(ASSETS_PATH, "drop.ogg"))
+        clear_sound = pygame.mixer.Sound(os.path.join(ASSETS_PATH, "clear.ogg"))
+    except pygame.error as e:
+        print(f"効果音ファイルの読み込みに失敗しました: {e}")
+        class DummySound:
+            def play(self): pass
+        drop_sound = clear_sound = DummySound()
 
-    # --- ゲーム準備 ---
+    # --- ゲームの基本設定 ---
     background_size = (250, 350)
     background_pos = (SCREEN_WIDTH//2-background_size[0]//2, SCREEN_HEIGHT//2-background_size[1]//2-70)
-    piece_positions = {
-        "head.png": (background_pos[0]+123, background_pos[1]+26), "costa.png": (background_pos[0]+123, background_pos[1]+85),
-        "backbone.png": (background_pos[0]+123, background_pos[1]+110), "pelvis.png": (background_pos[0]+123, background_pos[1]+155),
-        "right_arm.png": (background_pos[0]+50, background_pos[1]+130), "left_arm.png": (background_pos[0]+200, background_pos[1]+130),
-        "right_femur.png": (background_pos[0]+98, background_pos[1]+202), "left_femur.png": (background_pos[0]+152, background_pos[1]+202),
-        "right_knee.png": (background_pos[0]+103, background_pos[1]+237), "left_knee.png": (background_pos[0]+147, background_pos[1]+237),
-        "right_leg.png": (background_pos[0]+105, background_pos[1]+294), "left_leg.png": (background_pos[0]+145, background_pos[1]+294),
-    }
-    drawing_order = ["backbone.png", "costa.png", "pelvis.png", "right_femur.png", "left_femur.png", "right_leg.png", "left_leg.png", "right_arm.png", "left_arm.png", "head.png", "right_knee.png", "left_knee.png"]
-    piece_names = drawing_order
+    
+    original_bone_pieces = ["backbone.png", "costa.png", "pelvis.png", "right_femur.png", "left_femur.png", "right_leg.png", "left_leg.png", "right_arm.png", "left_arm.png", "head.png", "right_knee.png", "left_knee.png"]
+    
+    piece_positions = { "head.png": (background_pos[0]+123, background_pos[1]+26), "costa.png": (background_pos[0]+123, background_pos[1]+85), "backbone.png": (background_pos[0]+123, background_pos[1]+110), "pelvis.png": (background_pos[0]+123, background_pos[1]+155), "right_arm.png": (background_pos[0]+50, background_pos[1]+130), "left_arm.png": (background_pos[0]+200, background_pos[1]+130), "right_femur.png": (background_pos[0]+98, background_pos[1]+202), "left_femur.png": (background_pos[0]+152, background_pos[1]+202), "right_knee.png": (background_pos[0]+103, background_pos[1]+237), "left_knee.png": (background_pos[0]+147, background_pos[1]+237), "right_leg.png": (background_pos[0]+105, background_pos[1]+294), "left_leg.png": (background_pos[0]+145, background_pos[1]+294), }
     base_piece_height = 45
     piece_scale_multipliers = { "head.png":1.12, "backbone.png":2.8, "costa.png":1.25, "pelvis.png":1.15, "right_arm.png":3.3, "left_arm.png":3.3, "right_femur.png":1.76, "left_femur.png":1.76, "right_knee.png":0.42, "left_knee.png":0.42, "right_leg.png":2.28, "left_leg.png":2.28 }
     piece_rotations = { "right_arm.png": -9.4, "left_arm.png": 9.4 }
-    piece_drag_inflations = {
-        "right_knee.png": 40, "left_knee.png": 40, "head.png": 20, "right_arm.png": 8,
-        "left_arm.png": 8, "right_leg.png": 20, "left_leg.png": 20, "backbone.png": 8,
-        "pelvis.png": 10, "costa.png": 10, "right_femur.png": 20, "left_femur.png": 20,
-    }
-    def create_piece_frame(piece_image): return pygame.Surface(piece_image.get_size(), pygame.SRCALPHA)
-    def create_default_image(size, color=GREEN):
-        surface = pygame.Surface(size, pygame.SRCALPHA); s = max(1, min(size[0], size[1])//2-5)
-        pygame.draw.circle(surface, color, (size[0]//2, size[1]//2), s); pygame.draw.circle(surface, BLACK, (size[0]//2, size[1]//2), s, 3)
-        return surface
+    piece_drag_inflations = { "default": 20, "right_knee.png": 40, "left_knee.png": 40 }
+    
     piece_images_dict, frame_images_dict = {}, {}
-    background_image, reset_button_image = None, None
-    image_files = { "human": "human.png", "reset": "reset.png" }
-    for i, piece_name in enumerate(piece_names):
-        await asyncio.sleep(0) 
-        multiplier = piece_scale_multipliers.get(piece_name, 1.0); target_h = base_piece_height * multiplier
-        angle = piece_rotations.get(piece_name, 0); image_path = os.path.join(ASSETS_PATH, piece_name)
+    image_files = { "human": "human.png", "reset": "reset.png", "github": "github_icon.png" }
+    all_piece_names_to_load = original_bone_pieces + ["unchi.png"]
+
+    for name in all_piece_names_to_load:
+        await asyncio.sleep(0)
+        image_path = os.path.join(ASSETS_PATH, name)
         try:
             original_image = pygame.image.load(image_path).convert_alpha()
-            original_width, original_height = original_image.get_size()
-            aspect_ratio = original_width/original_height if original_height > 0 else 1
-            new_width, new_height = int(target_h*aspect_ratio), int(target_h)
-            resized_image = pygame.transform.scale(original_image, (new_width, new_height))
-            final_image = pygame.transform.rotate(resized_image, angle) if angle != 0 else resized_image
-            piece_images_dict[piece_name] = final_image
-        except pygame.error:
-            piece_images_dict[piece_name] = create_default_image((int(target_h), int(target_h)))
-        frame_images_dict[piece_name] = create_piece_frame(piece_images_dict[piece_name])
-    try:
-        background_image_path = os.path.join(ASSETS_PATH, image_files["human"])
-        background_image = pygame.transform.scale(pygame.image.load(background_image_path).convert_alpha(), background_size)
-    except pygame.error: pass
-    try:
-        reset_button_image_path = os.path.join(ASSETS_PATH, image_files["reset"])
-        reset_button_image = pygame.transform.scale(pygame.image.load(reset_button_image_path).convert_alpha(), (55, 30))
-    except pygame.error: pass
-    font = pygame.font.Font(None, 50); complete_text_render = font.render("Complete!", True, RED)
-    reset_button_rect = pygame.Rect(SCREEN_WIDTH-65, 10, 55, 30); piece_start_positions = {}
-    spacing_x = int(base_piece_height*2.4); start_x = spacing_x; start_y = 440
-    for i, name in enumerate(piece_names): piece_start_positions[name] = [start_x + i*spacing_x, start_y]
-    def shuffle_pieces():
-        shuffled_list = list(piece_names); random.shuffle(shuffled_list); new_positions = {}
-        for i, name in enumerate(shuffled_list): new_positions[name] = [start_x+i*spacing_x, start_y]
-        return new_positions
-    current_piece_positions = piece_start_positions.copy(); puzzle_done_state = {name: False for name in piece_names}
-    scroll_x = 0; scroll_speed = 40;
-    
-    # [無限ループ機能] ループ用の幅を計算
-    total_pieces_width = len(piece_names) * spacing_x
-    if total_pieces_width == 0: total_pieces_width = 1 # ゼロ除算を避ける
+            if name == "unchi.png": final_image = pygame.transform.scale(original_image, (50, 50))
+            else:
+                multiplier = piece_scale_multipliers.get(name, 1.0); target_h = base_piece_height * multiplier; angle = piece_rotations.get(name, 0); w, h = original_image.get_size(); aspect = w/h if h > 0 else 1; new_w, new_h = int(target_h * aspect), int(target_h); resized_image = pygame.transform.scale(original_image, (new_w, new_h)); final_image = pygame.transform.rotate(resized_image, angle)
+            piece_images_dict[name] = final_image
+        except pygame.error: piece_images_dict[name] = pygame.Surface((50,50), pygame.SRCALPHA)
+        if name != "unchi.png": frame_images_dict[name] = pygame.Surface(piece_images_dict[name].get_size(), pygame.SRCALPHA)
 
-    left_arrow_rect, right_arrow_rect = pygame.Rect(5, start_y-20, 30, 40), pygame.Rect(SCREEN_WIDTH-35, start_y-20, 30, 40)
-    dragging_piece = None; drag_offset_x, drag_offset_y = 0, 0; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
+    background_image = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_PATH, image_files["human"])).convert_alpha(), background_size)
+    reset_button_image = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_PATH, image_files["reset"])).convert_alpha(), (55, 30))
+    github_icon_image = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_PATH, image_files["github"])).convert_alpha(), (30, 30))
     
-    # [リセットカウント機能] カウント用変数の準備
-    reset_count = 0
-    count_font = pygame.font.Font(None, 24)
+    pelvis_center = piece_positions["pelvis.png"]
+    unchi_target_pos = (pelvis_center[0], pelvis_center[1] + 70) 
+
+    congrats_text_render = jp_font_36.render("おめでとう！", True, RED)
+
+    reset_button_rect = pygame.Rect(SCREEN_WIDTH-65, 10, 55, 30); start_y = 440; spacing_x = int(base_piece_height * 2.4); left_arrow_rect, right_arrow_rect = pygame.Rect(5, start_y-20, 30, 40), pygame.Rect(SCREEN_WIDTH-35, start_y-20, 30, 40)
+    
+    license_text_str, license_url = "MIT License", "https://github.com/ko-sekishinkai/bone_puzzle/blob/main/LICENSE"; github_url = "https://github.com/ko-sekishinkai/bone_puzzle"; license_surface_normal = font_18.render(license_text_str, True, GRAY); license_surface_hover = font_18.render(license_text_str, True, LINK_COLOR); license_rect = license_surface_normal.get_rect(topleft=(5, 5)); github_icon_rect = github_icon_image.get_rect(topleft=(license_rect.left, license_rect.bottom + 5))
+
+    game_level = 1; reset_count = 0; piece_names = []; drawing_order = []; piece_start_positions = {}; current_piece_positions = {}; puzzle_done_state = {}; scroll_x = 0; total_pieces_width = 1
+    
+    continuous_scroll_speed = 5
+    scrolling_left = False
+    scrolling_right = False
+
+    def reset_game_to_level1():
+        nonlocal piece_names, drawing_order, piece_start_positions, current_piece_positions, puzzle_done_state, scroll_x, total_pieces_width, game_level
+        game_level = 1; piece_names = list(original_bone_pieces); drawing_order = list(original_bone_pieces); random.shuffle(piece_names) 
+        start_x = spacing_x; temp_positions = {}; 
+        for i, name in enumerate(piece_names): temp_positions[name] = [start_x + i*spacing_x, start_y]
+        piece_start_positions = temp_positions.copy(); current_piece_positions = temp_positions.copy(); puzzle_done_state = {name: False for name in original_bone_pieces}
+        scroll_x = 0; total_pieces_width = len(original_bone_pieces) * spacing_x
+        if total_pieces_width == 0: total_pieces_width = 1
+
+    reset_game_to_level1()
+
+    dragging_piece = None; swiping_slider = False; swipe_start_x, initial_scroll_x = 0, 0
 
     running = True; clock = pygame.time.Clock(); FPS = 60
-
-    # ライセンス表示関連の準備
-    license_font = pygame.font.Font(None, 18)
-    license_text_str = "MIT License"
-    license_url = "https://github.com/ko-sekishinkai/bone_puzzle/blob/main/LICENSE"
-    license_surface_normal = license_font.render(license_text_str, True, GRAY)
-    license_surface_hover = license_font.render(license_text_str, True, LINK_COLOR)
-    license_rect = license_surface_normal.get_rect(topleft=(5, 5))
-
-    # GitHubアイコン関連の準備
-    github_url = "https://github.com/ko-sekishinkai/bone_puzzle"
-    try:
-        github_icon_image = pygame.image.load(os.path.join(ASSETS_PATH, "github_icon.png")).convert_alpha()
-        github_icon_image = pygame.transform.scale(github_icon_image, (30, 30))
-        github_icon_rect = github_icon_image.get_rect(topleft=(license_rect.left, license_rect.bottom + 5))
-    except pygame.error:
-        github_icon_image = None
-        github_icon_rect = pygame.Rect(0,0,0,0)
-
+    
     while running:
         mouse_pos = pygame.mouse.get_pos()
         is_hovering_license = license_rect.collidepoint(mouse_pos)
-        is_hovering_github = github_icon_rect and github_icon_rect.collidepoint(mouse_pos)
-
-        if is_hovering_license or is_hovering_github:
-            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
-        else:
-            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+        is_hovering_github = github_icon_rect.collidepoint(mouse_pos)
+        pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if is_hovering_license or is_hovering_github else pygame.SYSTEM_CURSOR_ARROW)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if is_hovering_license: webbrowser.open(license_url)
-                elif is_hovering_github: webbrowser.open(github_url)
-                else:
-                    if all(puzzle_done_state.values()) and reset_button_rect.collidepoint(mouse_pos):
-                        # [リセットカウント機能] カウントアップ処理
-                        reset_count += 1
-                        piece_start_positions=shuffle_pieces(); current_piece_positions=piece_start_positions.copy(); puzzle_done_state={name:False for name in piece_names}; scroll_x=0
-                    
-                    # [無限ループ機能] スクロール処理をループに変更
-                    elif left_arrow_rect.collidepoint(mouse_pos):
-                        scroll_x = (scroll_x - scroll_speed) % total_pieces_width
-                    elif right_arrow_rect.collidepoint(mouse_pos):
-                        scroll_x = (scroll_x + scroll_speed) % total_pieces_width
-                    else:
-                        slider_area=pygame.Rect(0, start_y-40, SCREEN_WIDTH, 100); piece_clicked_on_slider = False
-                        if slider_area.collidepoint(mouse_pos):
-                            for name in reversed(drawing_order):
-                                if not puzzle_done_state.get(name):
-                                    # [無限ループ機能] ピースのクリック判定をループ描画に合わせて行う
-                                    for offset in [0, total_pieces_width, -total_pieces_width]:
-                                        on_screen_x = piece_start_positions[name][0] - scroll_x + offset
-                                        on_screen_y = piece_start_positions[name][1]
-                                        rect = piece_images_dict[name].get_rect(center=(on_screen_x, on_screen_y))
-                                        inflation_amount = piece_drag_inflations.get(name, 20)
-                                        if rect.inflate(inflation_amount, inflation_amount).collidepoint(mouse_pos):
-                                            dragging_piece=name; current_piece_positions[name]=list(mouse_pos); drag_offset_x=mouse_pos[0]-on_screen_x; drag_offset_y=mouse_pos[1]-on_screen_y
-                                            piece_clicked_on_slider=True; break
-                                    if piece_clicked_on_slider: break
-                        if not piece_clicked_on_slider and slider_area.collidepoint(mouse_pos):
-                            swiping_slider=True; swipe_start_x=mouse_pos[0]; initial_scroll_x=scroll_x
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if dragging_piece:
-                    dist=pygame.math.Vector2(current_piece_positions[dragging_piece]).distance_to(piece_positions[dragging_piece])
-                    if dist <= 25: current_piece_positions[dragging_piece]=list(piece_positions[dragging_piece]); puzzle_done_state[dragging_piece]=True
-                    dragging_piece=None
-                swiping_slider = False
-            elif event.type == pygame.MOUSEMOTION:
-                if dragging_piece: current_piece_positions[dragging_piece]=list(event.pos)
+                if not is_mixer_initialized:
+                    try:
+                        pygame.mixer.init(); is_mixer_initialized = True; print("Audio Mixer Initialized!")
+                    except pygame.error as e: print(f"Mixerの初期化に失敗: {e}")
+
+                if is_hovering_license: webbrowser.open(license_url); continue
+                if is_hovering_github: webbrowser.open(github_url); continue
                 
-                # [無限ループ機能] スクロール処理をループに変更
+                if game_level == 2 and puzzle_done_state.get("unchi.png") and reset_button_rect.collidepoint(mouse_pos):
+                    reset_count += 1; reset_game_to_level1(); continue
+
+                if left_arrow_rect.collidepoint(mouse_pos): scrolling_left = True
+                elif right_arrow_rect.collidepoint(mouse_pos): scrolling_right = True
+                else:
+                    slider_area = pygame.Rect(0, start_y - 40, SCREEN_WIDTH, 100); piece_clicked = False
+                    if slider_area.collidepoint(mouse_pos):
+                        for name in reversed(piece_names):
+                            if not puzzle_done_state.get(name):
+                                offsets = [0, total_pieces_width, -total_pieces_width] if game_level == 1 else [0]
+                                for offset in offsets:
+                                    on_screen_x = piece_start_positions[name][0] - scroll_x + offset
+                                    rect = piece_images_dict[name].get_rect(center=(on_screen_x, start_y)); inflation = piece_drag_inflations.get(name, piece_drag_inflations["default"])
+                                    if rect.inflate(inflation, inflation).collidepoint(mouse_pos):
+                                        dragging_piece = name; current_piece_positions[name] = list(mouse_pos); piece_clicked = True; break
+                            if piece_clicked: break
+                    if not piece_clicked and slider_area.collidepoint(mouse_pos):
+                        swiping_slider = True; swipe_start_x = mouse_pos[0]; initial_scroll_x = scroll_x
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                scrolling_left = False
+                scrolling_right = False
+                
+                if dragging_piece:
+                    target_pos = unchi_target_pos if dragging_piece == "unchi.png" else piece_positions[dragging_piece]
+                    dist = pygame.math.Vector2(current_piece_positions[dragging_piece]).distance_to(target_pos)
+                    if dist <= 35:
+                        current_piece_positions[dragging_piece] = list(target_pos)
+                        puzzle_done_state[dragging_piece] = True
+                        
+                        # --- ▼▼▼ ここが効果音を再生している部分です ▼▼▼ ---
+                        if is_mixer_initialized:
+                            # もし置いたのが "unchi.png" ならクリア音
+                            if dragging_piece == "unchi.png": 
+                                clear_sound.play()
+                            # それ以外のピース（骨）ならドロップ音
+                            else: 
+                                drop_sound.play()
+                        # --- ▲▲▲ ここまで ▲▲▲ ---
+
+                    dragging_piece = None
+                swiping_slider = False
+
+            elif event.type == pygame.MOUSEMOTION:
+                if dragging_piece: current_piece_positions[dragging_piece] = list(event.pos)
                 elif swiping_slider:
-                    swipe_distance=swipe_start_x-event.pos[0]
-                    scroll_x = (initial_scroll_x + swipe_distance) % total_pieces_width
+                    swipe_distance = swipe_start_x - event.pos[0]
+                    if game_level == 1: scroll_x = (initial_scroll_x + swipe_distance) % total_pieces_width
+                    else: scroll_x = max(0, min(0, initial_scroll_x + swipe_distance))
 
-        screen.fill(WHITE)
-        if background_image: screen.blit(background_image, background_pos)
-        for piece_name, pos in piece_positions.items():
-            if not puzzle_done_state.get(piece_name):
-                frame_img=frame_images_dict[piece_name]; screen.blit(frame_img, frame_img.get_rect(center=pos))
-        for name in drawing_order:
-            img=piece_images_dict[name]
-            if name == dragging_piece or puzzle_done_state.get(name):
-                 pos=current_piece_positions[name]; screen.blit(img, img.get_rect(center=pos))
-            else:
-                # [無限ループ機能] 描画処理をループに対応させる
-                # 3セット（中央、右、左）描画して無限スクロールを実現
-                for offset in [0, total_pieces_width, -total_pieces_width]:
-                    on_screen_x = piece_start_positions[name][0] - scroll_x + offset
-                    on_screen_y = piece_start_positions[name][1]
-                    
-                    rect=img.get_rect(center=(int(on_screen_x), int(on_screen_y)))
-                    # 画面内に見えるものだけ描画
-                    if rect.right > 0 and rect.left < SCREEN_WIDTH:
-                        screen.blit(img, rect)
+        if scrolling_left:
+            scroll_x = (scroll_x - continuous_scroll_speed) % total_pieces_width
+        if scrolling_right:
+            scroll_x = (scroll_x + continuous_scroll_speed) % total_pieces_width
 
-        pygame.draw.polygon(screen, GRAY, [(left_arrow_rect.left+5, left_arrow_rect.centery), (left_arrow_rect.right-5, left_arrow_rect.top+5), (left_arrow_rect.right-5, left_arrow_rect.bottom-5)])
-        pygame.draw.polygon(screen, GRAY, [(right_arrow_rect.right-5, right_arrow_rect.centery), (right_arrow_rect.left+5, right_arrow_rect.top+5), (right_arrow_rect.left+5, right_arrow_rect.bottom-5)])
-        if all(puzzle_done_state.values()):
-            if reset_button_image: screen.blit(reset_button_image, reset_button_rect)
-            else: pygame.draw.rect(screen, BLUE, reset_button_rect)
-            screen.blit(complete_text_render, complete_text_render.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT-60)))
+        is_level1_complete = all(puzzle_done_state.get(name, False) for name in original_bone_pieces)
+        if game_level == 1 and is_level1_complete:
+            game_level = 2; piece_names = ["unchi.png"]; drawing_order = ["unchi.png"]; start_pos_x = SCREEN_WIDTH // 2
+            piece_start_positions = {"unchi.png": [start_x, start_y]}; current_piece_positions["unchi.png"] = [start_x, start_y]
+            puzzle_done_state["unchi.png"] = False; scroll_x = 0; total_pieces_width = 1
+
+        screen.fill(WHITE); screen.blit(background_image, background_pos)
+
+        if game_level == 1:
+            for name, pos in piece_positions.items():
+                if not puzzle_done_state.get(name):
+                    frame_img = frame_images_dict[name]; screen.blit(frame_img, frame_img.get_rect(center=pos))
         
-        # [リセットカウント機能] カウント数の表示
-        draw_text(screen, f"Resets: {reset_count}", count_font, BLACK, (reset_button_rect.centerx, reset_button_rect.bottom + 15))
+        all_pieces_to_draw = list(original_bone_pieces) + ["unchi.png"]
+        for name in all_pieces_to_draw:
+             if puzzle_done_state.get(name) or name == dragging_piece:
+                img = piece_images_dict.get(name)
+                if img:
+                    pos = current_piece_positions.get(name)
+                    if pos: screen.blit(img, img.get_rect(center=pos))
 
-        if is_hovering_license: screen.blit(license_surface_hover, license_rect)
-        else: screen.blit(license_surface_normal, license_rect)
-        if github_icon_image: screen.blit(github_icon_image, github_icon_rect)
+        for name in piece_names:
+            if not puzzle_done_state.get(name) and name != dragging_piece:
+                img = piece_images_dict[name]; offsets = [0, total_pieces_width, -total_pieces_width] if game_level == 1 else [0]
+                for offset in offsets:
+                    on_screen_x = piece_start_positions[name][0] - scroll_x + offset
+                    rect = img.get_rect(center=(int(on_screen_x), start_y))
+                    if rect.right > 0 and rect.left < SCREEN_WIDTH: screen.blit(img, rect)
+
+        if game_level == 1:
+            pygame.draw.polygon(screen, GRAY, [(left_arrow_rect.left+5, left_arrow_rect.centery), (left_arrow_rect.right-5, left_arrow_rect.top+5), (left_arrow_rect.right-5, left_arrow_rect.bottom-5)])
+            pygame.draw.polygon(screen, GRAY, [(right_arrow_rect.right-5, right_arrow_rect.centery), (right_arrow_rect.left+5, right_arrow_rect.top+5), (right_arrow_rect.left+5, right_arrow_rect.bottom-5)])
+        
+        if game_level == 2 and puzzle_done_state.get("unchi.png"):
+            screen.blit(congrats_text_render, congrats_text_render.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT-60)))
+            screen.blit(reset_button_image, reset_button_rect)
+        
+        draw_text(screen, f"Resets: {reset_count}", font_24, BLACK, (reset_button_rect.centerx, reset_button_rect.bottom + 15))
+
+        screen.blit(license_surface_hover if is_hovering_license else license_surface_normal, license_rect)
+        screen.blit(github_icon_image, github_icon_rect)
+        
         pygame.display.flip()
         await asyncio.sleep(0)
         clock.tick(FPS)
